@@ -183,10 +183,15 @@ ALTER TABLE borrow_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE borrow_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE system_config ENABLE ROW LEVEL SECURITY;
 
--- Profiles: users can read their own, admins can read all
+-- Helper: get current user's role without triggering RLS recursion
+CREATE OR REPLACE FUNCTION get_my_role()
+RETURNS text AS $$
+  SELECT role::text FROM profiles WHERE id = auth.uid()
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- Profiles: users can read their own, admins can read all (non-recursive via SECURITY DEFINER)
 CREATE POLICY "profiles_read" ON profiles FOR SELECT USING (
-  auth.uid() = id OR
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  auth.uid() = id OR get_my_role() = 'admin'
 );
 CREATE POLICY "profiles_update_own" ON profiles FOR UPDATE USING (auth.uid() = id);
 
@@ -219,38 +224,55 @@ CREATE POLICY "equipment_items_staff_write" ON equipment_items FOR ALL USING (
   auth.uid() IS NOT NULL
 );
 
--- Admin-only write for config data
-CREATE POLICY "departments_admin_write" ON departments FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "procedures_admin_write" ON procedures FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "categories_admin_write" ON categories FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "compartments_admin_write" ON compartments FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "equipment_models_admin_write" ON equipment_models FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "procedure_equipment_admin_write" ON procedure_equipment FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-);
+-- Admin-only write for config data (write-only policies — SELECT handled by public_read above)
+CREATE POLICY "departments_admin_insert" ON departments FOR INSERT WITH CHECK (get_my_role() = 'admin');
+CREATE POLICY "departments_admin_update" ON departments FOR UPDATE USING (get_my_role() = 'admin');
+CREATE POLICY "departments_admin_delete" ON departments FOR DELETE USING (get_my_role() = 'admin');
+
+CREATE POLICY "procedures_admin_insert" ON procedures FOR INSERT WITH CHECK (get_my_role() = 'admin');
+CREATE POLICY "procedures_admin_update" ON procedures FOR UPDATE USING (get_my_role() = 'admin');
+CREATE POLICY "procedures_admin_delete" ON procedures FOR DELETE USING (get_my_role() = 'admin');
+
+CREATE POLICY "categories_admin_insert" ON categories FOR INSERT WITH CHECK (get_my_role() = 'admin');
+CREATE POLICY "categories_admin_update" ON categories FOR UPDATE USING (get_my_role() = 'admin');
+CREATE POLICY "categories_admin_delete" ON categories FOR DELETE USING (get_my_role() = 'admin');
+
+CREATE POLICY "compartments_admin_insert" ON compartments FOR INSERT WITH CHECK (get_my_role() = 'admin');
+CREATE POLICY "compartments_admin_update" ON compartments FOR UPDATE USING (get_my_role() = 'admin');
+CREATE POLICY "compartments_admin_delete" ON compartments FOR DELETE USING (get_my_role() = 'admin');
+
+CREATE POLICY "equipment_models_admin_insert" ON equipment_models FOR INSERT WITH CHECK (get_my_role() = 'admin');
+CREATE POLICY "equipment_models_admin_update" ON equipment_models FOR UPDATE USING (get_my_role() = 'admin');
+CREATE POLICY "equipment_models_admin_delete" ON equipment_models FOR DELETE USING (get_my_role() = 'admin');
+
+CREATE POLICY "procedure_equipment_admin_insert" ON procedure_equipment FOR INSERT WITH CHECK (get_my_role() = 'admin');
+CREATE POLICY "procedure_equipment_admin_update" ON procedure_equipment FOR UPDATE USING (get_my_role() = 'admin');
+CREATE POLICY "procedure_equipment_admin_delete" ON procedure_equipment FOR DELETE USING (get_my_role() = 'admin');
 
 CREATE POLICY "system_config_read" ON system_config FOR SELECT USING (true);
-CREATE POLICY "system_config_admin_write" ON system_config FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-);
+CREATE POLICY "system_config_admin_insert" ON system_config FOR INSERT WITH CHECK (get_my_role() = 'admin');
+CREATE POLICY "system_config_admin_update" ON system_config FOR UPDATE USING (get_my_role() = 'admin');
+CREATE POLICY "system_config_admin_delete" ON system_config FOR DELETE USING (get_my_role() = 'admin');
 
 -- ─── Default Seed Data ────────────────────────────────────────────────────────
 INSERT INTO departments (name) VALUES
+  ('College of Health Sciences'),
   ('College of Nursing'),
+  ('College of Medicine'),
   ('College of Medical Technology'),
   ('College of Pharmacy'),
   ('College of Allied Health Sciences'),
-  ('College of Medicine')
+  ('College of Engineering and Technology'),
+  ('College of Business Administration'),
+  ('College of Accountancy'),
+  ('College of Education'),
+  ('College of Arts and Sciences'),
+  ('College of Law'),
+  ('College of Computer Studies'),
+  ('College of Architecture'),
+  ('College of Criminology'),
+  ('College of Social Work and Community Development'),
+  ('Graduate School')
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO categories (name, color_shade, description) VALUES

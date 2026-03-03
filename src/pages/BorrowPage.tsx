@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle, Loader2, AlertCircle, Package } from 'lucide-react'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { CheckCircle, Loader2, AlertCircle, Package, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,11 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/useToast'
 import { supabase } from '@/lib/supabase'
-import type { Procedure, Department, EquipmentItem, BorrowTransaction } from '@/types'
+import type { Procedure, Department, EquipmentItem, EquipmentModel, BorrowTransaction } from '@/types'
 import { cn } from '@/lib/utils'
 
 const schema = z.object({
-  student_id: z.string().min(1, 'Student ID is required'),
   student_name: z.string().min(2, 'Full name is required'),
   college_department: z.string().min(1, 'Department is required'),
   instructor_name: z.string().min(2, 'Instructor name is required'),
@@ -35,13 +34,13 @@ export function BorrowPage() {
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
   const [openTx, setOpenTx] = useState<BorrowTransaction | null>(null)
   const [submitted, setSubmitted] = useState(false)
+  const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set())
 
   const { register, handleSubmit, watch, formState: { errors }, setValue } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
 
   const procedureId = watch('procedure_id')
-  const studentId = watch('student_id')
 
   // Departments
   const { data: departments = [] } = useQuery({
@@ -85,12 +84,12 @@ export function BorrowPage() {
     },
   })
 
-  // Check for open transaction
-  const checkOpenTransaction = async (sid: string) => {
+  // Check for open transaction by student name
+  const checkOpenTransaction = async (name: string) => {
     const { data: borrower } = await supabase
       .from('borrowers')
       .select('id')
-      .eq('student_id', sid)
+      .ilike('student_name', name.trim())
       .maybeSingle()
 
     if (!borrower) return null
@@ -109,22 +108,42 @@ export function BorrowPage() {
     mutationFn: async () => {
       if (!formData || selectedItemIds.length === 0) throw new Error('No items selected')
 
-      // Upsert borrower profile
-      const { data: borrower, error: bErr } = await supabase
+      // Find existing borrower by name, or create new
+      const { data: existing } = await supabase
         .from('borrowers')
-        .upsert({
-          student_id: formData.student_id,
-          student_name: formData.student_name,
+        .select('id')
+        .ilike('student_name', formData.student_name.trim())
+        .maybeSingle()
+
+      let borrowerId: string
+      if (existing) {
+        await supabase.from('borrowers').update({
           college_department: formData.college_department,
           instructor_name: formData.instructor_name,
           subject: formData.subject,
           group_number: formData.group_number || null,
           class_schedule: formData.class_schedule,
-        }, { onConflict: 'student_id' })
-        .select()
-        .single()
+        }).eq('id', existing.id)
+        borrowerId = existing.id
+      } else {
+        const { data: created, error: bErr } = await supabase
+          .from('borrowers')
+          .insert({
+            student_name: formData.student_name.trim(),
+            college_department: formData.college_department,
+            instructor_name: formData.instructor_name,
+            subject: formData.subject,
+            group_number: formData.group_number || null,
+            class_schedule: formData.class_schedule,
+          })
+          .select()
+          .single()
+        if (bErr) throw bErr
+        borrowerId = created.id
+      }
 
-      if (bErr) throw bErr
+      // alias for use below
+      const borrower = { id: borrowerId }
 
       // Create transaction
       const { data: tx, error: txErr } = await supabase
@@ -167,7 +186,7 @@ export function BorrowPage() {
   })
 
   async function onStepOneSubmit(data: FormData) {
-    const open = await checkOpenTransaction(data.student_id)
+    const open = await checkOpenTransaction(data.student_name)
     if (open) {
       setOpenTx(open)
       return
@@ -181,6 +200,24 @@ export function BorrowPage() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     )
   }
+
+  function toggleModel(modelId: string) {
+    setExpandedModels((prev) => {
+      const next = new Set(prev)
+      next.has(modelId) ? next.delete(modelId) : next.add(modelId)
+      return next
+    })
+  }
+
+  // Group suggested items by equipment model
+  const groupedItems = suggestedItems.reduce<Record<string, { model: EquipmentModel; items: EquipmentItem[] }>>(
+    (acc, item) => {
+      const mid = item.equipment_model_id
+      if (!acc[mid]) acc[mid] = { model: item.equipment_model!, items: [] }
+      acc[mid].items.push(item)
+      return acc
+    }, {}
+  )
 
   function handleConfirm() {
     if (selectedItemIds.length === 0) {
@@ -262,17 +299,10 @@ export function BorrowPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onStepOneSubmit)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Student ID *</Label>
-                  <Input placeholder="e.g. 2021-00001" {...register('student_id')} />
-                  {errors.student_id && <p className="text-xs text-destructive">{errors.student_id.message}</p>}
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Full Name *</Label>
-                  <Input placeholder="Juan Dela Cruz" {...register('student_name')} />
-                  {errors.student_name && <p className="text-xs text-destructive">{errors.student_name.message}</p>}
-                </div>
+              <div className="space-y-1.5">
+                <Label>Full Name *</Label>
+                <Input placeholder="Juan Dela Cruz" {...register('student_name')} />
+                {errors.student_name && <p className="text-xs text-destructive">{errors.student_name.message}</p>}
               </div>
 
               <div className="space-y-1.5">
@@ -364,41 +394,72 @@ export function BorrowPage() {
               </p>
             ) : (
               <div className="space-y-2 mb-4">
-                {suggestedItems.map((item) => {
-                  const isAvailable = item.status === 'available'
-                  const isSelected = selectedItemIds.includes(item.id)
+                {Object.entries(groupedItems).map(([modelId, { model, items }]) => {
+                  const availableCount = items.filter(i => i.status === 'available').length
+                  const selectedCount = items.filter(i => selectedItemIds.includes(i.id)).length
+                  const isExpanded = expandedModels.has(modelId)
                   return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      disabled={!isAvailable}
-                      onClick={() => isAvailable && toggleItem(item.id)}
-                      className={cn(
-                        'w-full text-left p-3 rounded-lg border-2 transition-all flex items-center gap-3',
-                        isSelected ? 'border-green-600 bg-green-50' : 'border-border hover:border-green-300',
-                        !isAvailable && 'opacity-50 cursor-not-allowed bg-muted'
-                      )}
-                    >
-                      <div className={cn(
-                        'w-5 h-5 rounded border-2 flex items-center justify-center shrink-0',
-                        isSelected ? 'bg-green-600 border-green-600' : 'border-input'
-                      )}>
-                        {isSelected && <div className="w-2 h-2 bg-white rounded-sm" />}
-                      </div>
-                      <Package className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{item.equipment_model?.name}</p>
-                        <p className="text-xs text-muted-foreground">Code: {item.unique_code}</p>
-                      </div>
-                      <Badge
-                        className={cn(
-                          'text-xs shrink-0',
-                          isAvailable ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                        )}
+                    <div key={modelId} className="border rounded-lg overflow-hidden">
+                      {/* Model header — click to expand */}
+                      <button
+                        type="button"
+                        onClick={() => toggleModel(modelId)}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-left"
                       >
-                        {isAvailable ? 'Available' : item.status}
-                      </Badge>
-                    </button>
+                        <ChevronRight className={cn(
+                          'w-4 h-4 text-muted-foreground transition-transform duration-150 shrink-0',
+                          isExpanded && 'rotate-90'
+                        )} />
+                        <Package className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="font-medium text-sm flex-1">{model.name}</span>
+                        {selectedCount > 0 && (
+                          <Badge className="bg-green-600 text-white text-xs">{selectedCount} selected</Badge>
+                        )}
+                        <Badge className={cn(
+                          'text-xs',
+                          availableCount > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        )}>
+                          {availableCount} available
+                        </Badge>
+                      </button>
+
+                      {/* Expanded item list */}
+                      {isExpanded && (
+                        <div className="border-t divide-y bg-muted/30">
+                          {items.map((item) => {
+                            const isAvailable = item.status === 'available'
+                            const isSelected = selectedItemIds.includes(item.id)
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                disabled={!isAvailable}
+                                onClick={() => isAvailable && toggleItem(item.id)}
+                                className={cn(
+                                  'w-full text-left pl-10 pr-3 py-2 flex items-center gap-3 transition-colors',
+                                  isSelected ? 'bg-green-50' : 'hover:bg-accent',
+                                  !isAvailable && 'opacity-50 cursor-not-allowed'
+                                )}
+                              >
+                                <div className={cn(
+                                  'w-4 h-4 rounded border-2 flex items-center justify-center shrink-0',
+                                  isSelected ? 'bg-green-600 border-green-600' : 'border-input bg-white'
+                                )}>
+                                  {isSelected && <div className="w-1.5 h-1.5 bg-white rounded-sm" />}
+                                </div>
+                                <span className="text-sm font-mono">{item.unique_code}</span>
+                                <Badge className={cn(
+                                  'text-xs ml-auto',
+                                  isAvailable ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                                )}>
+                                  {isAvailable ? 'Available' : item.status.replace('_', ' ')}
+                                </Badge>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>
@@ -429,8 +490,7 @@ export function BorrowPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <div><span className="text-muted-foreground">Student ID:</span><p className="font-medium">{formData.student_id}</p></div>
-              <div><span className="text-muted-foreground">Name:</span><p className="font-medium">{formData.student_name}</p></div>
+              <div className="col-span-2"><span className="text-muted-foreground">Name:</span><p className="font-medium">{formData.student_name}</p></div>
               <div><span className="text-muted-foreground">Department:</span><p className="font-medium">{formData.college_department}</p></div>
               <div><span className="text-muted-foreground">Instructor:</span><p className="font-medium">{formData.instructor_name}</p></div>
               <div><span className="text-muted-foreground">Subject:</span><p className="font-medium">{formData.subject}</p></div>

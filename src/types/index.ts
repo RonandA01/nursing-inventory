@@ -44,7 +44,7 @@ export interface Compartment {
 
 export interface Borrower {
   id: string
-  student_id: string
+  student_id?: string | null
   student_name: string
   college_department: string
   instructor_name: string
@@ -120,7 +120,6 @@ export interface SystemConfig {
 
 // ─── Form Types ────────────────────────────────────────────────────────────
 export interface BorrowFormData {
-  student_id: string
   student_name: string
   college_department: string
   instructor_name: string

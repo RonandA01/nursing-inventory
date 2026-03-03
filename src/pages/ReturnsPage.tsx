@@ -22,7 +22,7 @@ const conditions: { value: ReturnCondition; label: string }[] = [
 export function ReturnsPage() {
   const { toast } = useToast()
   const qc = useQueryClient()
-  const [searchId, setSearchId] = useState('')
+  const [searchName, setSearchName] = useState('')
   const [loading, setLoading] = useState(false)
   const [transactions, setTransactions] = useState<BorrowTransaction[]>([])
   const [selectedTx, setSelectedTx] = useState<BorrowTransaction | null>(null)
@@ -30,27 +30,27 @@ export function ReturnsPage() {
   const [success, setSuccess] = useState(false)
 
   async function search() {
-    if (!searchId.trim()) return
+    if (!searchName.trim()) return
     setLoading(true)
     setTransactions([])
     setSelectedTx(null)
 
-    const { data: borrower } = await supabase
+    const { data: borrowers } = await supabase
       .from('borrowers')
       .select('id')
-      .eq('student_id', searchId.trim())
-      .maybeSingle()
+      .ilike('student_name', `%${searchName.trim()}%`)
 
-    if (!borrower) {
-      toast({ title: 'No borrower found', description: `No student with ID "${searchId}" exists.`, variant: 'destructive' })
+    if (!borrowers?.length) {
+      toast({ title: 'No borrower found', description: `No student matching "${searchName}" found.`, variant: 'destructive' })
       setLoading(false)
       return
     }
 
+    const borrowerIds = borrowers.map((b) => b.id)
     const { data: txs } = await supabase
       .from('borrow_transactions')
       .select('*, borrower:borrowers(*), procedure:procedures(*), borrow_items(*, equipment_item:equipment_items(*, equipment_model:equipment_models(*)))')
-      .eq('borrower_id', borrower.id)
+      .in('borrower_id', borrowerIds)
       .eq('status', 'borrowed')
       .order('date_borrowed', { ascending: false })
 
@@ -131,14 +131,14 @@ export function ReturnsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Search Borrower</CardTitle>
-          <CardDescription>Enter the student ID to find their active borrow transactions</CardDescription>
+          <CardDescription>Enter the student name to find their active borrow transactions</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2">
             <Input
-              placeholder="Student ID (e.g. 2021-00001)"
-              value={searchId}
-              onChange={(e) => setSearchId(e.target.value)}
+              placeholder="Student name (e.g. Juan Dela Cruz)"
+              value={searchName}
+              onChange={(e) => setSearchName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && search()}
             />
             <Button onClick={search} disabled={loading}>
@@ -164,7 +164,7 @@ export function ReturnsPage() {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">{tx.borrower?.student_name} <span className="text-muted-foreground text-sm">({tx.borrower?.student_id})</span></p>
+                    <p className="font-medium">{tx.borrower?.student_name}</p>
                     <p className="text-sm text-muted-foreground mt-1">
                       Procedure: {tx.procedure?.name} • Borrowed: {formatDateTime(tx.date_borrowed)}
                     </p>
@@ -178,7 +178,7 @@ export function ReturnsPage() {
         </Card>
       )}
 
-      {transactions.length === 0 && !loading && searchId && (
+      {transactions.length === 0 && !loading && searchName && (
         <p className="text-center text-muted-foreground py-4">No active borrow transactions found for this student.</p>
       )}
 

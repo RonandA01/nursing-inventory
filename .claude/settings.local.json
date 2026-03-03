@@ -5,7 +5,11 @@
       "Bash(npm install --legacy-peer-deps)",
       "Bash(npm run build)",
       "Bash(timeout 8 npm run dev)",
-      "mcp__serena__list_dir"
+      "mcp__serena__list_dir",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__find_symbol",
+      "mcp__serena__search_for_pattern",
+      "mcp__serena__find_file"
     ]
   }
 }

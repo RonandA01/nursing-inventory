@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
 import { useAuthStore } from '@/stores/authStore'
+import { useAuth } from '@/hooks/useAuth'
 
 // Pages
 import { LoginPage } from '@/pages/LoginPage'
@@ -19,6 +20,7 @@ import { ReportsPage } from '@/pages/ReportsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 
 function RequireAuth() {
+  useAuth() // Must run unconditionally so getSession() fires before the loading check
   const { session, loading } = useAuthStore()
   if (loading) return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" /></div>
   if (!session) return <Navigate to="/login" replace />

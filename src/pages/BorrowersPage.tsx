@@ -40,7 +40,7 @@ export function BorrowersPage() {
 
   const filtered = borrowers.filter((b) => {
     const q = search.toLowerCase()
-    return !q || b.student_name.toLowerCase().includes(q) || b.student_id.toLowerCase().includes(q) || b.college_department.toLowerCase().includes(q)
+    return !q || b.student_name.toLowerCase().includes(q) || b.college_department.toLowerCase().includes(q)
   })
 
   return (
@@ -55,7 +55,7 @@ export function BorrowersPage() {
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, ID, or department..."
+              placeholder="Search by name or department..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
@@ -88,7 +88,6 @@ export function BorrowersPage() {
                         </div>
                         <div>
                           <p className="font-medium text-sm">{b.student_name}</p>
-                          <p className="text-xs text-muted-foreground">{b.student_id}</p>
                         </div>
                       </div>
                     </TableCell>
