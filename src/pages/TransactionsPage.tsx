@@ -13,6 +13,9 @@ import type { BorrowTransaction } from '@/types'
 export function TransactionsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [departmentFilter, setDepartmentFilter] = useState<string>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const { data: transactions = [], isLoading } = useQuery({
     queryKey: ['transactions'],
@@ -28,15 +31,20 @@ export function TransactionsPage() {
     },
   })
 
+  const departments = [...new Set(transactions.map((tx) => tx.borrower?.college_department).filter(Boolean))] as string[]
+
   const filtered = transactions.filter((tx) => {
     const q = search.toLowerCase()
     const matchSearch =
       !q ||
       tx.borrower?.student_name?.toLowerCase().includes(q) ||
-      tx.borrower?.student_id?.toLowerCase().includes(q) ||
       tx.procedure?.name?.toLowerCase().includes(q)
     const matchStatus = statusFilter === 'all' || tx.status === statusFilter
-    return matchSearch && matchStatus
+    const matchDept = departmentFilter === 'all' || tx.borrower?.college_department === departmentFilter
+    const txDate = new Date(tx.date_borrowed)
+    const matchFrom = !dateFrom || txDate >= new Date(dateFrom)
+    const matchTo = !dateTo || txDate <= new Date(dateTo + 'T23:59:59')
+    return matchSearch && matchStatus && matchDept && matchFrom && matchTo
   })
 
   return (
@@ -48,27 +56,64 @@ export function TransactionsPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-48">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, ID, or procedure..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative flex-1 min-w-48">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name or procedure..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="borrowed">Borrowed</SelectItem>
+                  <SelectItem value="returned">Returned</SelectItem>
+                  <SelectItem value="overdue">Overdue</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="All Departments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {departments.sort().map((dept) => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="borrowed">Borrowed</SelectItem>
-                <SelectItem value="returned">Returned</SelectItem>
-                <SelectItem value="overdue">Overdue</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm text-muted-foreground">Date borrowed:</span>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-40"
+              />
+              <span className="text-sm text-muted-foreground">to</span>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-40"
+              />
+              {(dateFrom || dateTo || departmentFilter !== 'all' || statusFilter !== 'all') && (
+                <button
+                  onClick={() => { setDateFrom(''); setDateTo(''); setDepartmentFilter('all'); setStatusFilter('all') }}
+                  className="text-xs text-muted-foreground underline hover:text-foreground"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -93,7 +138,6 @@ export function TransactionsPage() {
                   <TableRow key={tx.id}>
                     <TableCell className="font-medium text-sm">
                       {tx.borrower?.student_name}
-                      <br /><span className="text-xs text-muted-foreground">{tx.borrower?.student_id}</span>
                     </TableCell>
                     <TableCell className="text-sm">{tx.borrower?.college_department}</TableCell>
                     <TableCell className="text-sm">{tx.procedure?.name}</TableCell>

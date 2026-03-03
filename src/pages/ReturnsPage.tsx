@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Loader2, CheckCircle2, Package } from 'lucide-react'
+import { Loader2, CheckCircle2, Package } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,10 +24,23 @@ export function ReturnsPage() {
   const qc = useQueryClient()
   const [searchName, setSearchName] = useState('')
   const [loading, setLoading] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [transactions, setTransactions] = useState<BorrowTransaction[]>([])
   const [selectedTx, setSelectedTx] = useState<BorrowTransaction | null>(null)
   const [itemConditions, setItemConditions] = useState<Record<string, { condition: ReturnCondition; remarks: string }>>({})
   const [success, setSuccess] = useState(false)
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!searchName.trim()) {
+      setTransactions([])
+      setSelectedTx(null)
+      return
+    }
+    debounceRef.current = setTimeout(() => { search() }, 400)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchName])
 
   async function search() {
     if (!searchName.trim()) return
@@ -131,20 +144,20 @@ export function ReturnsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Search Borrower</CardTitle>
-          <CardDescription>Enter the student name to find their active borrow transactions</CardDescription>
+          <CardDescription>Results appear as you type</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2">
+          <div className="relative">
+            {loading
+              ? <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+              : <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">🔍</span>
+            }
             <Input
               placeholder="Student name (e.g. Juan Dela Cruz)"
               value={searchName}
               onChange={(e) => setSearchName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && search()}
+              className="pl-9"
             />
-            <Button onClick={search} disabled={loading}>
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-              Search
-            </Button>
           </div>
         </CardContent>
       </Card>
