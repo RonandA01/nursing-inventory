@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create vite@latest . -- --template react-ts)",
+      "Bash(npm install --legacy-peer-deps)",
+      "Bash(npm run build)",
+      "Bash(timeout 8 npm run dev)",
+      "mcp__serena__list_dir"
+    ]
+  }
+}
