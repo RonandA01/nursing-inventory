@@ -282,15 +282,13 @@ INSERT INTO categories (name, color_shade, description) VALUES
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO procedures (name, description) VALUES
-  ('Basic Vital Signs', 'Blood pressure, temperature, pulse, respiration'),
-  ('Wound Care', 'Wound dressing and irrigation procedures'),
-  ('Intravenous Therapy', 'IV insertion, maintenance, and removal'),
-  ('Physical Assessment', 'Head-to-toe physical examination'),
-  ('Urinary Catheterization', 'Urinary catheter insertion and maintenance'),
-  ('Nasogastric Tube Insertion', 'NGT insertion and feeding'),
-  ('Medication Administration', 'Oral and parenteral medication administration'),
-  ('Blood Extraction', 'Venipuncture and specimen collection'),
-  ('Basic Life Support', 'CPR and emergency procedures')
+  ('NGT', 'Nasogastric tube insertion procedure'),
+  ('Nebulizer Inhalation', 'Aerosol medication delivery via nebulizer compressor'),
+  ('Suctioning', 'Airway suctioning to remove secretions'),
+  ('CPR', 'Cardiopulmonary resuscitation emergency procedure'),
+  ('Administration of Oxygen', 'Supplemental oxygen delivery to the patient'),
+  ('Changing an IV Infusion', 'Replacement of IV fluid bag and tubing'),
+  ('Discontinuing an IV Infusion', 'Safe removal of IV catheter and discontinuation of infusion')
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO system_config (key, value) VALUES
